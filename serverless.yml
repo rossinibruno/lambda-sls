@@ -1,0 +1,55 @@
+org: rossinibruno
+app: opt-send-service
+service: opt-send-service
+
+plugins:
+  - serverless-offline-sqs
+  - serverless-offline
+  - serverless-offline-watcher
+
+provider:
+  name: aws
+  region: us-east-1
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "sqs:SendMessage"
+        - "sqs:GetQueueUrl"
+      Resource: "arn:aws:sqs:${self:provider.region}:811338114639:otp-send-queue"
+    - Effect: "Allow"
+      Action:
+        - "sqs:ListQueues"
+      Resource: "arn:aws:sqs:${self:provider.region}:811338114639:*"
+
+functions:
+  otp-send:
+    handler: dist/worker.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - OtpSendQueue
+              - Arn
+
+resources:
+  Resources:
+    OtpSendQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: "otp-send-queue"
+
+custom:
+  serverless-offline-sqs:
+    queueName: otp-send-queue # We need to patch the serverless-offline-sqs for this to work
+    autoCreate: true
+    apiVersion: '2012-11-05'
+    endpoint: http://0.0.0.0:9324
+    region: us-east-1
+    accessKeyId: doesnt_matter
+    secretAccessKey: doesnt_matter
+    skipCacheInvalidation: false
+  serverless-offline:
+    useChildProcesses: true
+  serverless-offline-watcher:
+    - path: src
+      command: rm -r ./dist && nest build --webpack && echo "build was modified!"
